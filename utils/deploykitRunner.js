@@ -58,7 +58,7 @@ function runDeployKit(args = []) {
 function stopApplication(appName) {
   return new Promise((resolve, reject) => {
     // Construct the SSH command to stop the app by scaling web processes to 0
-    const sshCommand = `ssh -i ${SSH_KEY_PATH} ${DOKKU_USER}@${DOKKU_HOST} dokku ps:scale ${appName} web=0`;
+    const sshCommand = `ssh -i ${SSH_KEY_PATH} ${DOKKU_USER}@${DOKKU_HOST} ps:scale ${appName} web=0`;
     
     // Execute the SSH command
     const process = exec(sshCommand, {
@@ -88,7 +88,7 @@ function stopApplication(appName) {
         });
       } else {
         // If ps:scale fails, try apps:destroy as fallback
-        const destroyCommand = `ssh -i ${SSH_KEY_PATH} ${DOKKU_USER}@${DOKKU_HOST} dokku apps:destroy ${appName} --force`;
+        const destroyCommand = `ssh -i ${SSH_KEY_PATH} ${DOKKU_USER}@${DOKKU_HOST} apps:destroy ${appName} --force`;
         const destroyProcess = exec(destroyCommand, {
           stdio: ['pipe', 'pipe', 'pipe']
         });
