@@ -1,13 +1,23 @@
-const { spawn } = require('child_process');
+const { spawn, exec } = require('child_process');
 const path = require('path');
 
-// Function to run Dokku commands with given arguments
+// Dokku server configuration
+const DOKKU_HOST = '202.155.90.19';
+const DOKKU_USER = 'dokku';
+const SSH_KEY_PATH = process.env.DOKKU_SSH_KEY || '/root/.ssh/id_rsa';
+
+// Function to run Dokku commands with given arguments via SSH
 function runDeployKit(args = []) {
   return new Promise((resolve, reject) => {
-    // Spawn the dokku command as a child process
-    const process = spawn('dokku', args, {
-      stdio: ['pipe', 'pipe', 'pipe'],  // stdin, stdout, stderr
-      env: { ...process.env }  // Pass through environment variables
+    // Join the arguments into a single command string
+    const command = args.join(' ');
+    
+    // Construct the SSH command to run Dokku on the remote server
+    const sshCommand = `ssh -i ${SSH_KEY_PATH} ${DOKKU_USER}@${DOKKU_HOST} ${command}`;
+    
+    // Execute the SSH command
+    const process = exec(sshCommand, {
+      stdio: ['pipe', 'pipe', 'pipe']  // stdin, stdout, stderr
     });
 
     let stdout = '';
@@ -44,11 +54,14 @@ function runDeployKit(args = []) {
   });
 }
 
-// Function to stop an application by name using Dokku
+// Function to stop an application by name using Dokku via SSH
 function stopApplication(appName) {
   return new Promise((resolve, reject) => {
-    // Use dokku to stop the app by scaling web processes to 0
-    const process = spawn('dokku', ['ps:scale', appName, 'web=0'], {
+    // Construct the SSH command to stop the app by scaling web processes to 0
+    const sshCommand = `ssh -i ${SSH_KEY_PATH} ${DOKKU_USER}@${DOKKU_HOST} dokku ps:scale ${appName} web=0`;
+    
+    // Execute the SSH command
+    const process = exec(sshCommand, {
       stdio: ['pipe', 'pipe', 'pipe']  // stdin, stdout, stderr
     });
 
@@ -75,7 +88,8 @@ function stopApplication(appName) {
         });
       } else {
         // If ps:scale fails, try apps:destroy as fallback
-        const destroyProcess = spawn('dokku', ['apps:destroy', appName, '--force'], {
+        const destroyCommand = `ssh -i ${SSH_KEY_PATH} ${DOKKU_USER}@${DOKKU_HOST} dokku apps:destroy ${appName} --force`;
+        const destroyProcess = exec(destroyCommand, {
           stdio: ['pipe', 'pipe', 'pipe']
         });
         
