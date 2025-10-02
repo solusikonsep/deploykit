@@ -1,0 +1,2162 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deploykit - Platform Hosting Modern untuk Developer Indonesia</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            scroll-behavior: smooth;
+        }
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .gradient-text {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .hover-lift {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .hover-lift:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        .animate-float {
+            animation: float 3s ease-in-out infinite;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+        }
+        .blob {
+            border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+            animation: blob 7s ease-in-out infinite;
+        }
+        @keyframes blob {
+            0%, 100% { border-radius: 30% 70% 70% 30% / 30% 30% 70% 70%; }
+            25% { border-radius: 58% 42% 75% 25% / 76% 46% 54% 24%; }
+            50% { border-radius: 50% 50% 33% 67% / 55% 27% 73% 45%; }
+            75% { border-radius: 33% 67% 58% 42% / 63% 68% 32% 37%; }
+        }
+        .feature-icon {
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 12px;
+            margin-bottom: 1rem;
+        }
+        .card-gradient-1 { background: linear-gradient(135deg, #ff9a9e 0%, #fad0c4 100%); }
+        .card-gradient-2 { background: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%); }
+        .card-gradient-3 { background: linear-gradient(135deg, #d4fc79 0%, #96e6a1 100%); }
+        .card-gradient-4 { background: linear-gradient(135deg, #f6d365 0%, #fda085 100%); }
+        .card-gradient-5 { background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%); }
+        .card-gradient-6 { background: linear-gradient(135deg, #a6c0fe 0%, #f68084 100%); }
+        .status-active { background-color: #dcfce7; color: #16a34a; }
+        .status-expired { background-color: #fee2e2; color: #dc2626; }
+        .status-pending { background-color: #fef3c7; color: #d97706; }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        function App() {
+            const [scrolled, setScrolled] = useState(false);
+            const [activeTab, setActiveTab] = useState('nodejs');
+            const [authModalOpen, setAuthModalOpen] = useState(false);
+            const [authMode, setAuthMode] = useState('login'); // 'login' or 'register'
+            const [currentUser, setCurrentUser] = useState(null);
+            const [userToken, setUserToken] = useState(localStorage.getItem('deploykit_token') || null);
+            const [subscription, setSubscription] = useState(null);
+            const [showBillingModal, setShowBillingModal] = useState(false);
+            const [showPaymentModal, setShowPaymentModal] = useState(false);
+            const [selectedPlan, setSelectedPlan] = useState(null);
+            const [paymentInfo, setPaymentInfo] = useState({
+                amount: '',
+                paymentMethod: 'bank_transfer',
+                bankAccountName: 'Alam Santiko Wibowo',
+                bankAccountNumber: '4330427430',
+                paymentReference: '',
+                notes: ''
+            });
+            const [usedApps, setUsedApps] = useState(0);
+            const [appLimit, setAppLimit] = useState(0);
+            const [currentPage, setCurrentPage] = useState('home'); // 'home', 'dashboard', 'apps', 'billing', 'admin', 'docs'
+            
+            // Initialize current page based on URL hash
+            useEffect(() => {
+                const handleHashChange = () => {
+                    const hash = window.location.hash.replace('#', '');
+                    if (hash === 'dashboard') {
+                        setCurrentPage('dashboard');
+                    } else if (hash === 'docs') {
+                        setCurrentPage('docs');
+                    } else if (hash === 'pricing') {
+                        setCurrentPage('billing');
+                    } else {
+                        setCurrentPage('home');
+                    }
+                };
+                
+                window.addEventListener('hashchange', handleHashChange);
+                handleHashChange(); // Set initial page
+                
+                return () => {
+                    window.removeEventListener('hashchange', handleHashChange);
+                };
+            }, []);
+
+            useEffect(() => {
+                const handleScroll = () => {
+                    setScrolled(window.scrollY > 50);
+                };
+                window.addEventListener('scroll', handleScroll);
+                return () => window.removeEventListener('scroll', handleScroll);
+            }, []);
+
+            // Load user subscription on token change
+            useEffect(() => {
+                const fetchUserSubscription = async () => {
+                    if (userToken && currentUser) {
+                        try {
+                            const response = await apiCall('/billing/subscription', 'GET');
+                            if (response.subscription) {
+                                setSubscription(response.subscription);
+                            }
+                            
+                            // Also fetch application data to get counts
+                            const appsResponse = await apiCall('/billing/applications', 'GET');
+                            if (appsResponse.usedApps !== undefined && appsResponse.appLimit !== undefined) {
+                                setUsedApps(appsResponse.usedApps);
+                                setAppLimit(appsResponse.appLimit);
+                            }
+                        } catch (error) {
+                            console.error('Error fetching subscription:', error);
+                        }
+                    }
+                };
+                
+                fetchUserSubscription();
+            }, [userToken, currentUser]);
+
+            // Handle logout
+            const handleLogout = () => {
+                setCurrentUser(null);
+                setUserToken(null);
+                setSubscription(null);
+                localStorage.removeItem('deploykit_token');
+            };
+
+            const features = [
+                {
+                    title: 'Deploy Instan',
+                    desc: 'Deploy aplikasi dalam hitungan detik dengan Git push',
+                    icon: '⚡'
+                },
+                {
+                    title: 'Auto Scaling',
+                    desc: 'Skala otomatis sesuai traffic aplikasi Anda',
+                    icon: '📈'
+                },
+                {
+                    title: 'SSL Gratis',
+                    desc: 'Sertifikat SSL otomatis untuk semua domain',
+                    icon: '🔒'
+                },
+                {
+                    title: 'Database Managed',
+                    desc: 'PostgreSQL, MySQL, MongoDB siap pakai',
+                    icon: '💾'
+                },
+                {
+                    title: 'Monitoring 24/7',
+                    desc: 'Dashboard monitoring real-time',
+                    icon: '📊'
+                },
+                {
+                    title: 'Support Lokal',
+                    desc: 'Tim support berbahasa Indonesia',
+                    icon: '🇮🇩'
+                }
+            ];
+
+            const stacks = [
+                { name: 'Node.js', id: 'nodejs' },
+                { name: 'Python', id: 'python' },
+                { name: 'PHP', id: 'php' },
+                { name: 'Ruby', id: 'ruby' },
+                { name: 'Go', id: 'go' },
+                { name: 'Java', id: 'java' }
+            ];
+
+            const pricing = [
+                {
+                    name: 'Starter',
+                    price: '49K',
+                    features: ['512MB RAM', '1 vCPU', '10GB Storage', '1 App', 'SSL Gratis']
+                },
+                {
+                    name: 'Pro',
+                    price: '149K',
+                    features: ['2GB RAM', '2 vCPU', '50GB Storage', '5 Apps', 'Database Managed', 'Priority Support'],
+                    popular: true
+                },
+                {
+                    name: 'Business',
+                    price: '399K',
+                    features: ['8GB RAM', '4 vCPU', '200GB Storage', 'Unlimited Apps', 'Database Cluster', 'Dedicated Support']
+                }
+            ];
+
+            // API functions
+            const apiCall = async (endpoint, method = 'GET', data = null) => {
+                const url = `http://localhost:3000/api${endpoint}`;
+                const options = {
+                    method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                };
+
+                if (userToken) {
+                    options.headers.Authorization = `Bearer ${userToken}`;
+                }
+
+                if (data) {
+                    options.body = JSON.stringify(data);
+                }
+
+                try {
+                    const response = await fetch(url, options);
+                    const result = await response.json();
+                    return result;
+                } catch (error) {
+                    console.error('API Error:', error);
+                    throw error;
+                }
+            };
+
+            // Handle subscription upgrade
+            const handleSubscriptionUpgrade = async (planType) => {
+                if (!currentUser) {
+                    alert('Silakan login terlebih dahulu');
+                    return;
+                }
+                
+                setSelectedPlan(planType);
+                
+                // Set amount based on plan
+                const planAmounts = {
+                    'starter': '49000',
+                    'pro': '149000',
+                    'business': '399000'
+                };
+                
+                setPaymentInfo(prev => ({
+                    ...prev,
+                    amount: planAmounts[planType]
+                }));
+                
+                setShowPaymentModal(true);
+            };
+
+            // Process payment
+            const processPayment = async () => {
+                try {
+                    const response = await apiCall('/billing/payment', 'POST', paymentInfo);
+                    if (response.paymentId) {
+                        alert('Pembayaran berhasil dicatat. Admin akan memverifikasi pembayaran Anda dalam 1x24 jam.');
+                        setShowPaymentModal(false);
+                        setShowBillingModal(false);
+                    } else {
+                        alert(response.error || 'Gagal memproses pembayaran');
+                    }
+                } catch (error) {
+                    alert('Gagal memproses pembayaran: ' + error.message);
+                }
+            };
+
+            // Billing Modal Component
+            const BillingModal = () => {
+                if (!showBillingModal) return null;
+
+                const plans = [
+                    {
+                        name: 'Starter',
+                        price: '49K',
+                        description: 'Cocok untuk percobaan',
+                        features: [
+                            {icon: 'fas fa-microchip', text: '512MB RAM'},
+                            {icon: 'fas fa-microchip', text: '1 vCPU'},
+                            {icon: 'fas fa-database', text: '10GB Storage'},
+                            {icon: 'fas fa-layer-group', text: '2 Aplikasi'},
+                            {icon: 'fas fa-lock', text: 'SSL Gratis'},
+                            {icon: 'fas fa-shield-alt', text: 'Firewall Dasar'}
+                        ],
+                        planType: 'starter'
+                    },
+                    {
+                        name: 'Pro',
+                        price: '149K',
+                        description: 'Untuk developer profesional',
+                        features: [
+                            {icon: 'fas fa-microchip', text: '2GB RAM'},
+                            {icon: 'fas fa-microchip', text: '2 vCPU'},
+                            {icon: 'fas fa-database', text: '50GB Storage'},
+                            {icon: 'fas fa-layer-group', text: '5 Aplikasi'},
+                            {icon: 'fas fa-database', text: 'Database Managed'},
+                            {icon: 'fas fa-headset', text: 'Priority Support'},
+                            {icon: 'fas fa-chart-line', text: 'Monitoring'},
+                            {icon: 'fas fa-bolt', text: 'Auto Scaling'}
+                        ],
+                        planType: 'pro',
+                        popular: true
+                    },
+                    {
+                        name: 'Business',
+                        price: '399K',
+                        description: 'Untuk perusahaan besar',
+                        features: [
+                            {icon: 'fas fa-microchip', text: '8GB RAM'},
+                            {icon: 'fas fa-microchip', text: '4 vCPU'},
+                            {icon: 'fas fa-database', text: '200GB Storage'},
+                            {icon: 'fas fa-layer-group', text: '10 Aplikasi'},
+                            {icon: 'fas fa-database', text: 'Database Cluster'},
+                            {icon: 'fas fa-headset', text: 'Dedicated Support'},
+                            {icon: 'fas fa-shield-alt', text: 'Advanced Security'},
+                            {icon: 'fas fa-backup', text: 'Backup Otomatis'}
+                        ],
+                        planType: 'business'
+                    }
+                ];
+
+                return (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                        <div className="bg-white rounded-2xl p-8 w-full max-w-6xl max-h-[90vh] overflow-y-auto">
+                            <div className="flex justify-between items-center mb-6">
+                                <div>
+                                    <h3 className="text-2xl font-bold">Pilih Paket Langganan</h3>
+                                    <p className="text-gray-600">Temukan paket yang sesuai dengan kebutuhan Anda</p>
+                                </div>
+                                <button 
+                                    onClick={() => setShowBillingModal(false)}
+                                    className="text-gray-500 hover:text-gray-700 text-2xl"
+                                >
+                                    &times;
+                                </button>
+                            </div>
+                            
+                            <div className="grid md:grid-cols-3 gap-8">
+                                {plans.map((plan, idx) => (
+                                    <div key={idx} className={`rounded-2xl overflow-hidden shadow-xl ${
+                                        plan.popular ? 'ring-4 ring-purple-500 relative transform -translate-y-2' : 'border border-gray-200'
+                                    }`}>
+                                        {plan.popular && (
+                                            <div className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white text-center py-2">
+                                                <span className="font-bold">Paling Populer</span>
+                                            </div>
+                                        )}
+                                        <div className={`p-6 ${plan.popular ? 'bg-white' : 'bg-gray-50'}`}>
+                                            <h4 className="text-xl font-bold text-gray-900 mb-2">{plan.name}</h4>
+                                            <p className="text-gray-600 mb-4">{plan.description}</p>
+                                            
+                                            <div className="mb-6">
+                                                <span className="text-4xl font-bold text-purple-600">{plan.price}</span>
+                                                <span className="text-gray-600">/bulan</span>
+                                            </div>
+                                            
+                                            <ul className="space-y-3 mb-8">
+                                                {plan.features.map((feature, fIdx) => (
+                                                    <li key={fIdx} className="flex items-start text-gray-700">
+                                                        <i className={`${feature.icon} text-green-500 mt-1 mr-3`}></i>
+                                                        <span>{feature.text}</span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                            
+                                            <button
+                                                onClick={() => handleSubscriptionUpgrade(plan.planType)}
+                                                className={`w-full py-4 rounded-xl font-bold transition ${
+                                                    plan.popular
+                                                        ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:opacity-90'
+                                                        : 'bg-gray-800 text-white hover:bg-gray-700'
+                                                }`}
+                                            >
+                                                Pilih Paket {plan.name}
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            
+                            <div className="mt-8 bg-blue-50 rounded-2xl p-6 border border-blue-100">
+                                <h4 className="font-bold text-blue-800 mb-2 flex items-center">
+                                    <i className="fas fa-info-circle mr-2"></i> Informasi Pembayaran
+                                </h4>
+                                <p className="text-blue-700">
+                                    Pembayaran dapat dilakukan melalui transfer bank ke rekening:
+                                    <br />
+                                    <strong>Nama:</strong> Alam Santiko Wibowo
+                                    <br />
+                                    <strong>BCA:</strong> 4330427430
+                                    <br />
+                                    Setelah melakukan pembayaran, silakan unggah bukti transfer di halaman pembayaran.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
+            // Payment Modal Component
+            const PaymentModal = () => {
+                if (!showPaymentModal) return null;
+
+                return (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                        <div className="bg-white rounded-xl p-8 w-full max-w-md">
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="text-2xl font-bold">Detail Pembayaran</h3>
+                                <button 
+                                    onClick={() => setShowPaymentModal(false)}
+                                    className="text-gray-500 hover:text-gray-700 text-2xl"
+                                >
+                                    &times;
+                                </button>
+                            </div>
+                            
+                            <div className="mb-6">
+                                <h4 className="font-bold text-lg mb-2">Detail Transfer Bank</h4>
+                                <div className="bg-gray-100 p-4 rounded-lg">
+                                    <p className="font-semibold">Nama Rekening: {paymentInfo.bankAccountName}</p>
+                                    <p className="font-semibold">Nomor Rekening: {paymentInfo.bankAccountNumber}</p>
+                                    <p className="font-semibold">Bank: BCA</p>
+                                </div>
+                            </div>
+                            
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-gray-700 mb-2">Jumlah Pembayaran (Rp)</label>
+                                    <input
+                                        type="text"
+                                        value={paymentInfo.amount}
+                                        onChange={(e) => setPaymentInfo(prev => ({...prev, amount: e.target.value}))}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                        placeholder="Jumlah pembayaran"
+                                    />
+                                </div>
+                                
+                                <div>
+                                    <label className="block text-gray-700 mb-2">Catatan (Opsional)</label>
+                                    <textarea
+                                        value={paymentInfo.notes}
+                                        onChange={(e) => setPaymentInfo(prev => ({...prev, notes: e.target.value}))}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                        placeholder="Catatan tambahan"
+                                        rows="3"
+                                    />
+                                </div>
+                                
+                                <div>
+                                    <label className="block text-gray-700 mb-2">Referensi Pembayaran (Opsional)</label>
+                                    <input
+                                        type="text"
+                                        value={paymentInfo.paymentReference}
+                                        onChange={(e) => setPaymentInfo(prev => ({...prev, paymentReference: e.target.value}))}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                        placeholder="Nomor transaksi atau keterangan"
+                                    />
+                                </div>
+                            </div>
+                            
+                            <button
+                                onClick={processPayment}
+                                className="w-full mt-6 gradient-bg text-white py-3 rounded-lg font-semibold hover:opacity-90 transition"
+                            >
+                                Konfirmasi Pembayaran
+                            </button>
+                        </div>
+                    </div>
+                );
+            };
+
+            // User Applications Component
+            const UserApplications = ({ token }) => {
+                const [applications, setApplications] = useState([]);
+                const [appName, setAppName] = useState('');
+                const [loading, setLoading] = useState(false);
+                const [appLimit, setAppLimit] = useState(0);
+                const [usedApps, setUsedApps] = useState(0);
+
+                // Load applications
+                useEffect(() => {
+                    const fetchApplications = async () => {
+                        if (!token) return;
+                        
+                        try {
+                            const response = await apiCall('/billing/applications', 'GET');
+                            if (response.applications) {
+                                setApplications(response.applications);
+                                setAppLimit(response.appLimit);
+                                setUsedApps(response.usedApps);
+                            }
+                        } catch (error) {
+                            console.error('Error fetching applications:', error);
+                        }
+                    };
+                    
+                    fetchApplications();
+                }, [token]);
+
+                const createApplication = async () => {
+                    if (!appName.trim()) {
+                        alert('Nama aplikasi harus diisi');
+                        return;
+                    }
+                    
+                    setLoading(true);
+                    try {
+                        const response = await apiCall('/billing/applications', 'POST', { name: appName });
+                        if (response.application) {
+                            setApplications([...applications, response.application]);
+                            setAppName('');
+                            // Update counts
+                            setUsedApps(prev => prev + 1);
+                        } else {
+                            alert(response.error || 'Gagal membuat aplikasi');
+                        }
+                    } catch (error) {
+                        alert('Gagal membuat aplikasi: ' + error.message);
+                    } finally {
+                        setLoading(false);
+                    }
+                };
+
+                const manageApplication = async (appId, action) => {
+                    try {
+                        let endpoint, method = 'POST';
+                        let message = '';
+                        
+                        switch(action) {
+                            case 'start':
+                                endpoint = `/deploykit/restart-app`;
+                                message = 'Aplikasi berhasil diaktifkan';
+                                break;
+                            case 'stop':
+                                endpoint = `/deploykit/stop-app`;
+                                message = 'Aplikasi berhasil dihentikan';
+                                break;
+                            case 'delete':
+                                // For demo purposes - in real app, you'd have a proper delete endpoint
+                                const updatedApps = applications.filter(app => app.id !== appId);
+                                setApplications(updatedApps);
+                                setUsedApps(prev => prev - 1);
+                                alert('Aplikasi berhasil dihapus');
+                                return;
+                            default:
+                                return;
+                        }
+                        
+                        await apiCall(endpoint, method, { appName: applications.find(app => app.id === appId)?.name });
+                        alert(message);
+                        
+                        // Refresh the applications list
+                        const response = await apiCall('/billing/applications', 'GET');
+                        if (response.applications) {
+                            setApplications(response.applications);
+                            setAppLimit(response.appLimit);
+                            setUsedApps(response.usedApps);
+                        }
+                    } catch (error) {
+                        alert(`Gagal ${action} aplikasi: ${error.message}`);
+                    }
+                };
+
+                return (
+                    <div className="bg-white rounded-xl shadow">
+                        <div className="p-6 border-b border-gray-200">
+                            <div className="flex justify-between items-center mb-4">
+                                <h4 className="text-lg font-semibold text-gray-900">Aplikasi Saya</h4>
+                                <span className="text-sm bg-gray-100 px-3 py-1 rounded-full">
+                                    {usedApps}/{appLimit} aplikasi
+                                </span>
+                            </div>
+                            
+                            <div className="flex">
+                                <input
+                                    type="text"
+                                    value={appName}
+                                    onChange={(e) => setAppName(e.target.value)}
+                                    placeholder="Nama aplikasi baru"
+                                    className="flex-1 px-4 py-2 border border-gray-300 rounded-l-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                    disabled={usedApps >= appLimit}
+                                    onKeyPress={(e) => e.key === 'Enter' && createApplication()}
+                                />
+                                <button
+                                    onClick={createApplication}
+                                    disabled={loading || usedApps >= appLimit}
+                                    className={`px-4 py-2 text-white rounded-r-lg flex items-center ${
+                                        usedApps >= appLimit 
+                                            ? 'bg-gray-400 cursor-not-allowed' 
+                                            : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700'
+                                    }`}
+                                >
+                                    {loading ? (
+                                        <i className="fas fa-spinner animate-spin mr-2"></i>
+                                    ) : (
+                                        <i className="fas fa-plus mr-2"></i>
+                                    )}
+                                    {loading ? 'Membuat...' : 'Buat'}
+                                </button>
+                            </div>
+                            
+                            {usedApps >= appLimit && (
+                                <div className="mt-4 p-3 bg-gradient-to-r from-yellow-50 to-amber-50 border border-amber-200 rounded-lg">
+                                    <div className="flex items-center">
+                                        <i className="fas fa-exclamation-triangle text-amber-500 mr-2"></i>
+                                        <p className="text-amber-700">
+                                            Anda telah mencapai batas aplikasi untuk paket {subscription?.plan_type}. 
+                                            <button 
+                                                onClick={() => setShowBillingModal(true)}
+                                                className="ml-1 font-medium text-purple-600 hover:text-purple-800 underline"
+                                            >
+                                                Upgrade sekarang
+                                            </button>
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        
+                        <div className="p-4 max-h-80 overflow-y-auto">
+                            {applications.length > 0 ? (
+                                applications.map(app => (
+                                    <div key={app.id} className="border-b border-gray-100 last:border-0 py-4">
+                                        <div className="flex justify-between items-start">
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center">
+                                                    <h5 className="font-medium text-gray-900 truncate">{app.name}</h5>
+                                                    <span className={`ml-2 px-2 py-0.5 rounded-full text-xs ${
+                                                        app.status === 'active' ? 'status-active' : 
+                                                        app.status === 'expired' ? 'status-expired' : 
+                                                        app.status === 'stopped' ? 'status-pending' : 'bg-gray-100 text-gray-800'
+                                                    }`}>
+                                                        {app.status.charAt(0).toUpperCase() + app.status.slice(1)}
+                                                    </span>
+                                                </div>
+                                                <div className="mt-1 flex items-center text-sm text-gray-500">
+                                                    <i className="fas fa-clock mr-1"></i>
+                                                    <span>{new Date(app.created_at).toLocaleDateString()}</span>
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="flex space-x-2 ml-4">
+                                                {app.status === 'active' && (
+                                                    <button
+                                                        onClick={() => manageApplication(app.id, 'stop')}
+                                                        className="p-2 text-gray-500 hover:text-red-500 rounded-full hover:bg-red-50"
+                                                        title="Hentikan aplikasi"
+                                                    >
+                                                        <i className="fas fa-stop"></i>
+                                                    </button>
+                                                )}
+                                                {app.status === 'stopped' && (
+                                                    <button
+                                                        onClick={() => manageApplication(app.id, 'start')}
+                                                        className="p-2 text-gray-500 hover:text-green-500 rounded-full hover:bg-green-50"
+                                                        title="Nyalakan aplikasi"
+                                                    >
+                                                        <i className="fas fa-play"></i>
+                                                    </button>
+                                                )}
+                                                <button
+                                                    onClick={() => manageApplication(app.id, 'delete')}
+                                                    className="p-2 text-gray-500 hover:text-red-500 rounded-full hover:bg-red-50"
+                                                    title="Hapus aplikasi"
+                                                >
+                                                    <i className="fas fa-trash"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="mt-3 flex space-x-3">
+                                            <button className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded">
+                                                <i className="fas fa-external-link-alt mr-1"></i> Lihat
+                                            </button>
+                                            <button className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded">
+                                                <i className="fas fa-code mr-1"></i> Kode
+                                            </button>
+                                            <button className="text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded">
+                                                <i className="fas fa-chart-bar mr-1"></i> Monitor
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))
+                            ) : (
+                                <div className="text-center py-10">
+                                    <i className="fas fa-layer-group text-5xl text-gray-300 mb-4"></i>
+                                    <h4 className="text-lg font-medium text-gray-900 mb-1">Belum ada aplikasi</h4>
+                                    <p className="text-gray-500 mb-6">Buat aplikasi pertama Anda untuk memulai</p>
+                                    <button
+                                        onClick={createApplication}
+                                        disabled={usedApps >= appLimit}
+                                        className={`px-6 py-3 rounded-lg font-medium flex items-center justify-center mx-auto ${
+                                            usedApps >= appLimit 
+                                                ? 'bg-gray-400 cursor-not-allowed text-white' 
+                                                : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white'
+                                        }`}
+                                    >
+                                        <i className="fas fa-plus mr-2"></i> Buat Aplikasi Pertama
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                );
+            };
+
+            // Authentication functions
+            const handleLogin = async (username, password) => {
+                try {
+                    const response = await apiCall('/users/login', 'POST', { username, password });
+                    if (response.token) {
+                        setUserToken(response.token);
+                        localStorage.setItem('deploykit_token', response.token);
+                        setCurrentUser(response.user);
+                        setAuthModalOpen(false);
+                    } else {
+                        alert(response.error || 'Login failed');
+                    }
+                } catch (error) {
+                    alert('Login failed: ' + error.message);
+                }
+            };
+
+            const handleRegister = async (username, email, password) => {
+                try {
+                    const response = await apiCall('/users/register', 'POST', { username, email, password });
+                    if (response.token) {
+                        setUserToken(response.token);
+                        localStorage.setItem('deploykit_token', response.token);
+                        setCurrentUser(response.user);
+                        setAuthModalOpen(false);
+                    } else {
+                        alert(response.error || 'Registration failed');
+                    }
+                } catch (error) {
+                    alert('Registration failed: ' + error.message);
+                }
+            };
+
+            // Auth Modal Component
+            const AuthModal = () => {
+                const [username, setUsername] = useState('');
+                const [email, setEmail] = useState('');
+                const [password, setPassword] = useState('');
+                
+                const handleSubmit = async (e) => {
+                    e.preventDefault();
+                    
+                    if (authMode === 'login') {
+                        await handleLogin(username, password);
+                    } else {
+                        await handleRegister(username, email, password);
+                    }
+                };
+
+                return (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                        <div className="bg-white rounded-xl p-8 w-full max-w-md">
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-2xl font-bold">
+                                    {authMode === 'login' ? 'Masuk ke Akun Anda' : 'Daftar Akun Baru'}
+                                </h3>
+                                <button 
+                                    onClick={() => setAuthModalOpen(false)}
+                                    className="text-gray-500 hover:text-gray-700"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+                            
+                            <form onSubmit={handleSubmit}>
+                                {authMode === 'register' && (
+                                    <div className="mb-4">
+                                        <label className="block text-gray-700 mb-2">Email</label>
+                                        <input
+                                            type="email"
+                                            value={email}
+                                            onChange={(e) => setEmail(e.target.value)}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                            required
+                                        />
+                                    </div>
+                                )}
+                                
+                                <div className="mb-4">
+                                    <label className="block text-gray-700 mb-2">Username</label>
+                                    <input
+                                        type="text"
+                                        value={username}
+                                        onChange={(e) => setUsername(e.target.value)}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                        required
+                                    />
+                                </div>
+                                
+                                <div className="mb-6">
+                                    <label className="block text-gray-700 mb-2">Password</label>
+                                    <input
+                                        type="password"
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                        required
+                                    />
+                                </div>
+                                
+                                <button
+                                    type="submit"
+                                    className="w-full gradient-bg text-white py-3 rounded-lg font-semibold hover:opacity-90 transition"
+                                >
+                                    {authMode === 'login' ? 'Masuk' : 'Daftar'}
+                                </button>
+                            </form>
+                            
+                            <div className="mt-4 text-center">
+                                <button
+                                    onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')}
+                                    className="text-purple-600 hover:underline"
+                                >
+                                    {authMode === 'login'
+                                        ? 'Belum punya akun? Daftar di sini'
+                                        : 'Sudah punya akun? Masuk di sini'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
+            // Admin Dashboard Component
+            const AdminDashboard = () => {
+                const [adminView, setAdminView] = useState('payments'); // 'payments' or 'users'
+                const [pendingPayments, setPendingPayments] = useState([]);
+                const [allUsers, setAllUsers] = useState([]);
+                const [loading, setLoading] = useState(true);
+                
+                useEffect(() => {
+                    if (currentUser?.username === 'admin') {
+                        fetchAdminData();
+                    }
+                }, [currentUser, adminView]);
+                
+                const fetchAdminData = async () => {
+                    setLoading(true);
+                    try {
+                        if (adminView === 'payments') {
+                            const response = await apiCall('/admin/pending-payments', 'GET');
+                            setPendingPayments(response.pendingPayments || []);
+                        } else if (adminView === 'users') {
+                            // In a real application, there would be an endpoint for all users
+                            // For demo purposes, we'll create sample data
+                            const sampleUsers = [
+                                { id: 1, username: 'admin', email: 'admin@deploykit.id', plan: 'business', status: 'active', apps: 3 },
+                                { id: 2, username: 'john_doe', email: 'john@example.com', plan: 'pro', status: 'active', apps: 2 },
+                                { id: 3, username: 'jane_smith', email: 'jane@example.com', plan: 'starter', status: 'active', apps: 1 },
+                                { id: 4, username: 'bob_williams', email: 'bob@example.com', plan: 'starter', status: 'expired', apps: 0 },
+                                { id: 5, username: 'alice_brown', email: 'alice@example.com', plan: 'pro', status: 'pending_payment', apps: 2 }
+                            ];
+                            setAllUsers(sampleUsers);
+                        }
+                    } catch (error) {
+                        console.error('Error fetching admin data:', error);
+                    } finally {
+                        setLoading(false);
+                    }
+                };
+                
+                const verifyPayment = async (paymentId, status) => {
+                    try {
+                        await apiCall(`/admin/verify-payment/${paymentId}`, 'POST', { status });
+                        alert(`Pembayaran ${status} berhasil!`);
+                        fetchAdminData(); // Refresh the data
+                    } catch (error) {
+                        alert('Gagal memverifikasi pembayaran: ' + error.message);
+                    }
+                };
+                
+                if (currentUser?.username !== 'admin') {
+                    return null;
+                }
+                
+                return (
+                    <div className="bg-white rounded-2xl shadow-lg p-6 mt-8">
+                        <div className="flex border-b mb-6">
+                            <button
+                                className={`px-4 py-2 font-medium ${adminView === 'payments' ? 'text-purple-600 border-b-2 border-purple-600' : 'text-gray-500'}`}
+                                onClick={() => setAdminView('payments')}
+                            >
+                                Verifikasi Pembayaran
+                            </button>
+                            <button
+                                className={`px-4 py-2 font-medium ${adminView === 'users' ? 'text-purple-600 border-b-2 border-purple-600' : 'text-gray-500'}`}
+                                onClick={() => setAdminView('users')}
+                            >
+                                Manajemen User
+                            </button>
+                        </div>
+                        
+                        {loading ? (
+                            <div className="text-center py-8">
+                                <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-purple-500"></div>
+                                <p className="mt-2 text-gray-600">Memuat data...</p>
+                            </div>
+                        ) : adminView === 'payments' ? (
+                            <div>
+                                <h3 className="text-xl font-bold text-gray-900 mb-4">Pembayaran Menunggu Verifikasi</h3>
+                                {pendingPayments.length > 0 ? (
+                                    <div className="overflow-x-auto">
+                                        <table className="min-w-full divide-y divide-gray-200">
+                                            <thead className="bg-gray-50">
+                                                <tr>
+                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jumlah</th>
+                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Metode</th>
+                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rekening</th>
+                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tanggal</th>
+                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="bg-white divide-y divide-gray-200">
+                                                {pendingPayments.map(payment => (
+                                                    <tr key={payment.id}>
+                                                        <td className="px-6 py-4 whitespace-nowrap">
+                                                            <div className="text-sm font-medium text-gray-900">{payment.username}</div>
+                                                            <div className="text-sm text-gray-500">{payment.email}</div>
+                                                        </td>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                                            Rp {Number(payment.amount).toLocaleString()}
+                                                        </td>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                            {payment.payment_method}
+                                                        </td>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                            {payment.bank_account_name}<br />
+                                                            {payment.bank_account_number}
+                                                        </td>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                                            {new Date(payment.created_at).toLocaleString()}
+                                                        </td>
+                                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                                            <button
+                                                                onClick={() => verifyPayment(payment.id, 'verified')}
+                                                                className="text-green-600 hover:text-green-900 mr-3"
+                                                            >
+                                                                <i className="fas fa-check-circle"></i> Terima
+                                                            </button>
+                                                            <button
+                                                                onClick={() => verifyPayment(payment.id, 'rejected')}
+                                                                className="text-red-600 hover:text-red-900"
+                                                            >
+                                                                <i className="fas fa-times-circle"></i> Tolak
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-8">
+                                        <i className="fas fa-check-circle text-5xl text-gray-300 mb-4"></i>
+                                        <h4 className="text-lg font-medium text-gray-900 mb-2">Tidak ada pembayaran menunggu</h4>
+                                        <p className="text-gray-500">Semua pembayaran telah diproses</p>
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div>
+                                <h3 className="text-xl font-bold text-gray-900 mb-4">Daftar Pengguna</h3>
+                                <div className="overflow-x-auto">
+                                    <table className="min-w-full divide-y divide-gray-200">
+                                        <thead className="bg-gray-50">
+                                            <tr>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paket</th>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aplikasi</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="bg-white divide-y divide-gray-200">
+                                            {allUsers.map(user => (
+                                                <tr key={user.id}>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{user.username}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{user.email}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 capitalize">{user.plan}</td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                                            user.status === 'active' ? 'status-active' : 
+                                                            user.status === 'expired' ? 'status-expired' : 
+                                                            user.status === 'pending_payment' ? 'status-pending' : 'bg-gray-100 text-gray-800'
+                                                        }`}>
+                                                            {user.status.replace('_', ' ')}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{user.apps}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                );
+            };
+
+            // User Profile Modal Component
+            const UserProfileModal = () => {
+                const [showProfileModal, setShowProfileModal] = useState(false);
+                const [profileData, setProfileData] = useState({
+                    username: currentUser?.username || '',
+                    email: currentUser?.email || '',
+                    newPassword: ''
+                });
+                const [isUpdating, setIsUpdating] = useState(false);
+
+                const updateProfile = async () => {
+                    setIsUpdating(true);
+                    try {
+                        // In this implementation, we're not actually updating user details
+                        // since our system doesn't have an endpoint for updating user info
+                        alert('Profil berhasil diperbarui!');
+                        setShowProfileModal(false);
+                    } catch (error) {
+                        alert('Gagal memperbarui profil: ' + error.message);
+                    } finally {
+                        setIsUpdating(false);
+                    }
+                };
+
+                if (!showProfileModal) return null;
+
+                return (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                        <div className="bg-white rounded-2xl p-8 w-full max-w-md">
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="text-2xl font-bold">Profil Saya</h3>
+                                <button 
+                                    onClick={() => setShowProfileModal(false)}
+                                    className="text-gray-500 hover:text-gray-700 text-2xl"
+                                >
+                                    &times;
+                                </button>
+                            </div>
+                            
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-gray-700 mb-2">Username</label>
+                                    <input
+                                        type="text"
+                                        value={profileData.username}
+                                        onChange={(e) => setProfileData({...profileData, username: e.target.value})}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                        disabled
+                                    />
+                                </div>
+                                
+                                <div>
+                                    <label className="block text-gray-700 mb-2">Email</label>
+                                    <input
+                                        type="email"
+                                        value={profileData.email}
+                                        onChange={(e) => setProfileData({...profileData, email: e.target.value})}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                        disabled
+                                    />
+                                </div>
+                                
+                                <div>
+                                    <label className="block text-gray-700 mb-2">Password Baru (Opsional)</label>
+                                    <input
+                                        type="password"
+                                        value={profileData.newPassword}
+                                        onChange={(e) => setProfileData({...profileData, newPassword: e.target.value})}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                        placeholder="Kosongkan jika tidak ingin mengganti"
+                                    />
+                                </div>
+                                
+                                <div className="pt-4">
+                                    <button
+                                        onClick={updateProfile}
+                                        disabled={isUpdating}
+                                        className="w-full gradient-bg text-white py-3 rounded-lg font-semibold hover:opacity-90 transition disabled:opacity-50"
+                                    >
+                                        {isUpdating ? 'Memperbarui...' : 'Perbarui Profil'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
+            // Deploykit Runner Component (Updated for Dokku CLI)
+            const DeploykitRunner = ({ token }) => {
+                const [command, setCommand] = useState('');
+                const [args, setArgs] = useState('');
+                const [output, setOutput] = useState('');
+                const [isLoading, setIsLoading] = useState(false);
+                
+                const runCommand = async () => {
+                    if (!command) {
+                        alert('Silakan masukkan perintah deploykit');
+                        return;
+                    }
+                    
+                    setIsLoading(true);
+                    setOutput('');
+                    
+                    try {
+                        // Check if command is a dokku command
+                        const dokkuCommands = ['apps', 'apps:create', 'apps:destroy', 'logs', 'config', 'config:set', 'config:unset', 'ps', 'ps:scale', 'domains', 'domains:add', 'domains:remove', 'nginx', 'proxy', 'backup', 'plugin', 'plugin:install', 'plugin:update', 'plugin:uninstall'];
+                        
+                        // If it's not a known dokku command, show warning
+                        if (!dokkuCommands.some(dc => command.startsWith(dc))) {
+                            // This is for backward compatibility with the deploykit.sh script
+                            const argsArray = args.trim() ? args.split(' ').filter(arg => arg.trim() !== '') : [];
+                            const fullCommand = [command, ...argsArray];
+                            
+                            const response = await apiCall('/deploykit/run', 'POST', { 
+                                args: fullCommand 
+                            });
+                            
+                            setOutput(response.output || response.error || 'Perintah selesai');
+                        } else {
+                            // For dokku commands, format appropriately
+                            const fullCommand = [command, ...args.split(' ').filter(arg => arg.trim() !== '')];
+                            
+                            const response = await apiCall('/deploykit/run', 'POST', { 
+                                args: fullCommand 
+                            });
+                            
+                            setOutput(response.output || response.error || 'Perintah selesai');
+                        }
+                    } catch (error) {
+                        setOutput('Error: ' + error.message);
+                    } finally {
+                        setIsLoading(false);
+                    }
+                };
+                
+                // Predefined Dokku commands for easier use
+                const predefinedCommands = [
+                    { name: 'apps:list', description: 'Daftar semua aplikasi', example: '' },
+                    { name: 'ps', description: 'Lihat status proses', example: '<app-name>' },
+                    { name: 'logs', description: 'Lihat log aplikasi', example: '<app-name> -t' },
+                    { name: 'config', description: 'Lihat konfigurasi aplikasi', example: '<app-name>' },
+                    { name: 'domains', description: 'Lihat domain aplikasi', example: '<app-name>' },
+                ];
+                
+                const selectPredefinedCommand = (cmd) => {
+                    setCommand(cmd.name);
+                    setArgs(cmd.example);
+                };
+
+                return (
+                    <div className="bg-white p-6 rounded-xl shadow">
+                        <div className="mb-6">
+                            <h4 className="font-semibold text-gray-900 mb-3">Perintah Dokku</h4>
+                            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 mb-4">
+                                {predefinedCommands.map((cmd, idx) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => selectPredefinedCommand(cmd)}
+                                        className="text-sm bg-gray-100 hover:bg-purple-100 text-gray-800 py-2 px-3 rounded-lg transition"
+                                        title={cmd.description}
+                                    >
+                                        {cmd.name}
+                                    </button>
+                                ))}
+                            </div>
+                            <div className="flex gap-2 mb-3">
+                                <input
+                                    type="text"
+                                    value={command}
+                                    onChange={(e) => setCommand(e.target.value)}
+                                    placeholder="Perintah Dokku (misal: apps:list, logs, ps)"
+                                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                />
+                                <button
+                                    onClick={() => setCommand('')}
+                                    className="px-4 py-2 text-gray-500 hover:text-gray-700"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+                            <input
+                                type="text"
+                                value={args}
+                                onChange={(e) => setArgs(e.target.value)}
+                                placeholder="Argumen (pemisah spasi, misal: myapp -t)"
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent mb-4"
+                            />
+                            <button
+                                onClick={runCommand}
+                                disabled={isLoading}
+                                className="gradient-bg text-white py-3 px-6 rounded-lg font-semibold hover:opacity-90 transition w-full disabled:opacity-50"
+                            >
+                                {isLoading ? 'Menjalankan...' : 'Jalankan Perintah'}
+                            </button>
+                        </div>
+                        
+                        <div>
+                            <h4 className="font-semibold text-gray-900 mb-3">Output:</h4>
+                            <div className="bg-gray-900 text-green-400 font-mono text-sm p-4 rounded-lg h-48 overflow-y-auto">
+                                {output || (
+                                    <div className="text-gray-500">
+                                        <p># Perintah Dokku</p>
+                                        <p># Contoh: apps:list - untuk melihat daftar aplikasi</p>
+                                        <p># Contoh: logs myapp -t - untuk melihat log aplikasi</p>
+                                        <p># Contoh: ps myapp - untuk melihat status proses</p>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                );
+            };
+
+            return (
+                <div className="min-h-screen">
+                    {/* Navigation */}
+                    <nav className={`fixed w-full z-50 transition-all duration-300 ${scrolled ? 'bg-white shadow-lg' : 'bg-transparent'}`}>
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                            <div className="flex justify-between items-center h-16">
+                                <div className="flex items-center space-x-2">
+                                    <div className="w-10 h-10 gradient-bg rounded-lg flex items-center justify-center text-white font-bold text-xl">
+                                        <i className="fas fa-rocket"></i>
+                                    </div>
+                                    <span className="text-2xl font-bold gradient-text">Deploykit</span>
+                                </div>
+                                <div className="hidden md:flex space-x-8">
+                                    {currentUser ? (
+                                        <>
+                                            <button 
+                                                onClick={() => { setCurrentPage('dashboard'); window.location.hash = 'dashboard'; }}
+                                                className={`text-gray-700 hover:text-purple-600 transition font-medium flex items-center ${currentPage === 'dashboard' ? 'text-purple-600' : ''}`}
+                                            >
+                                                <i className="fas fa-home mr-1"></i> Dashboard
+                                            </button>
+                                            <button 
+                                                onClick={() => { setCurrentPage('home'); window.location.hash = ''; }}
+                                                className={`text-gray-700 hover:text-purple-600 transition font-medium flex items-center ${currentPage === 'home' ? 'text-purple-600' : ''}`}
+                                            >
+                                                <i className="fas fa-bolt mr-1"></i> Fitur
+                                            </button>
+                                            <button 
+                                                onClick={() => { setCurrentPage('billing'); window.location.hash = 'pricing'; }}
+                                                className={`text-gray-700 hover:text-purple-600 transition font-medium flex items-center ${currentPage === 'billing' ? 'text-purple-600' : ''}`}
+                                            >
+                                                <i className="fas fa-tag mr-1"></i> Harga
+                                            </button>
+                                            <button 
+                                                onClick={() => setShowBillingModal(true)}
+                                                className="text-gray-700 hover:text-purple-600 transition font-medium flex items-center"
+                                            >
+                                                <i className="fas fa-arrow-up mr-1"></i> Upgrade
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <button 
+                                                onClick={() => { setCurrentPage('home'); window.location.hash = ''; }}
+                                                className={`text-gray-700 hover:text-purple-600 transition font-medium flex items-center ${currentPage === 'home' ? 'text-purple-600' : ''}`}
+                                            >
+                                                <i className="fas fa-bolt mr-1"></i> Fitur
+                                            </button>
+                                            <button 
+                                                onClick={() => { setCurrentPage('billing'); window.location.hash = 'pricing'; }}
+                                                className={`text-gray-700 hover:text-purple-600 transition font-medium flex items-center ${currentPage === 'billing' ? 'text-purple-600' : ''}`}
+                                            >
+                                                <i className="fas fa-tag mr-1"></i> Harga
+                                            </button>
+                                            <button 
+                                                onClick={() => { setCurrentPage('docs'); window.location.hash = 'docs'; }}
+                                                className={`text-gray-700 hover:text-purple-600 transition font-medium flex items-center ${currentPage === 'docs' ? 'text-purple-600' : ''}`}
+                                            >
+                                                <i className="fas fa-book mr-1"></i> Dokumentasi
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                                <div className="flex items-center space-x-4">
+                                    {currentUser ? (
+                                        <div className="flex items-center space-x-4">
+                                            <button 
+                                                onClick={() => setShowProfileModal(true)}
+                                                className="flex items-center space-x-2 text-gray-700 hover:text-purple-600 transition font-medium"
+                                            >
+                                                <div className="relative">
+                                                    <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-500 to-indigo-600 flex items-center justify-center text-white">
+                                                        <i className="fas fa-user"></i>
+                                                    </div>
+                                                    {subscription && subscription.status === 'active' && (
+                                                        <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white"></div>
+                                                    )}
+                                                </div>
+                                                <span className="hidden md:inline">Profil</span>
+                                            </button>
+                                            <div className="hidden md:block">
+                                                <div className="text-sm font-medium text-gray-900">{currentUser.username}</div>
+                                                {subscription && (
+                                                    <div className="text-xs text-gray-500">
+                                                        {subscription.plan_type} | {subscription.status}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <button 
+                                                onClick={handleLogout}
+                                                className="text-gray-700 hover:text-purple-600 transition font-medium flex items-center"
+                                            >
+                                                <i className="fas fa-sign-out-alt mr-1"></i> Keluar
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="flex space-x-3">
+                                            <button 
+                                                onClick={() => { setAuthModalOpen(true); setAuthMode('login'); }}
+                                                className="text-gray-700 hover:text-purple-600 transition font-medium flex items-center"
+                                            >
+                                                <i className="fas fa-sign-in-alt mr-1"></i> Masuk
+                                            </button>
+                                            <button 
+                                                onClick={() => { setAuthModalOpen(true); setAuthMode('register'); }}
+                                                className="gradient-bg text-white px-5 py-2 rounded-lg hover:opacity-90 transition font-medium flex items-center"
+                                            >
+                                                <i className="fas fa-user-plus mr-1"></i> Mulai Gratis
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </nav>
+
+                    {/* Auth Modal */}
+                    {authModalOpen && <AuthModal />}
+                    
+                    {/* Billing Modal */}
+                    {showBillingModal && <BillingModal />}
+                    
+                    {/* Payment Modal */}
+                    {showPaymentModal && <PaymentModal />}
+                    
+                    {/* User Profile Modal */}
+                    <UserProfileModal />
+
+                    {/* Main Content Area - Only show content based on current page */}
+                    {currentPage === 'home' && (
+                        <>
+                            {/* Hero Section */}
+                            <section className="relative pt-32 pb-20 overflow-hidden">
+                                <div className="blob absolute top-0 right-0 w-96 h-96 -z-10"></div>
+                                <div className="blob absolute bottom-0 left-0 w-96 h-96 -z-10" style={{animationDelay: '3s'}}></div>
+                                
+                                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                                    <div className="grid lg:grid-cols-2 gap-12 items-center">
+                                        <div className="text-center lg:text-left">
+                                            <div className="inline-block mb-6">
+                                                <span className="gradient-bg text-white px-5 py-2 rounded-full text-sm font-medium flex items-center justify-center lg:justify-start">
+                                                    <i className="fas fa-cloud mr-2"></i> Platform PaaS Made in Indonesia
+                                                </span>
+                                            </div>
+                                            <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6 leading-tight">
+                                                Deploy Aplikasi<br/>
+                                                <span className="gradient-text">Tanpa Ribet</span>
+                                            </h1>
+                                            <p className="text-xl text-gray-600 mb-8 max-w-2xl">
+                                                Platform hosting modern untuk developer Indonesia. Deploy, scale, dan monitor aplikasi Anda dengan mudah dalam hitungan detik.
+                                            </p>
+                                            <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+                                                <button 
+                                                    onClick={() => { setAuthModalOpen(true); setAuthMode('register'); }}
+                                                    className="gradient-bg text-white px-8 py-4 rounded-xl text-lg font-semibold hover:opacity-90 transition shadow-xl flex items-center justify-center"
+                                                >
+                                                    <i className="fas fa-rocket mr-2"></i> Coba Gratis 14 Hari
+                                                </button>
+                                                <button className="bg-white text-gray-700 px-8 py-4 rounded-xl text-lg font-semibold border-2 border-gray-300 hover:border-purple-500 transition flex items-center justify-center">
+                                                    <i className="fas fa-play-circle mr-2"></i> Lihat Demo
+                                                </button>
+                                            </div>
+                                            <p className="text-gray-500 mt-4 text-sm">Tidak perlu kartu kredit • Setup dalam 5 menit</p>
+                                            
+                                            <div className="mt-10 grid grid-cols-3 gap-6">
+                                                <div className="text-center">
+                                                    <div className="text-3xl font-bold gradient-text">99.9%</div>
+                                                    <div className="text-gray-600">Uptime</div>
+                                                </div>
+                                                <div className="text-center">
+                                                    <div className="text-3xl font-bold gradient-text">500+</div>
+                                                    <div className="text-gray-600">Developer Aktif</div>
+                                                </div>
+                                                <div className="text-center">
+                                                    <div className="text-3xl font-bold gradient-text">24/7</div>
+                                                    <div className="text-gray-600">Support</div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Code Preview */}
+                                        <div className="flex justify-center">
+                                            <div className="bg-gray-900 rounded-2xl shadow-2xl overflow-hidden animate-float w-full max-w-2xl">
+                                                <div className="bg-gray-800 px-5 py-4 flex items-center justify-between">
+                                                    <div className="flex items-center space-x-2">
+                                                        <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                                                        <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                                                        <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                                                    </div>
+                                                    <span className="text-gray-400 text-sm">deploykit-terminal</span>
+                                                    <div></div> {/* Spacer for alignment */}
+                                                </div>
+                                                <div className="p-6 font-mono text-sm">
+                                                    <div className="text-green-400">$ git push deploykit main</div>
+                                                    <div className="text-gray-400 mt-2">Deploying to Deploykit...</div>
+                                                    <div className="text-blue-400 mt-1">Building application...</div>
+                                                    <div className="text-yellow-400 mt-1">Running tests... ✓</div>
+                                                    <div className="text-green-400 mt-1">Deployed successfully! 🚀</div>
+                                                    <div className="text-purple-400 mt-1">https://myapp.deploykit.id</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
+
+                            {/* Supported Stacks */}
+                            <section className="py-12 bg-white">
+                                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                                    <div className="text-center mb-8">
+                                        <h3 className="text-2xl font-bold text-gray-900">Support Semua Stack Favorit Anda</h3>
+                                    </div>
+                                    <div className="flex flex-wrap justify-center gap-4">
+                                        {stacks.map(stack => (
+                                            <button
+                                                key={stack.id}
+                                                onClick={() => setActiveTab(stack.id)}
+                                                className={`px-6 py-3 rounded-lg font-medium transition ${
+                                                    activeTab === stack.id
+                                                        ? 'gradient-bg text-white'
+                                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                                }`}
+                                            >
+                                                {stack.name}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </section>
+
+                            {/* Features */}
+                            <section id="features" className="py-20 bg-gray-50">
+                                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                                    <div className="text-center mb-16">
+                                        <h2 className="text-4xl font-bold text-gray-900 mb-4">
+                                            Fitur yang Membuat <span className="gradient-text">Developer Senang</span>
+                                        </h2>
+                                        <p className="text-xl text-gray-600">Semua yang Anda butuhkan untuk deploy dan scale aplikasi</p>
+                                    </div>
+                                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                                        <div className="bg-white p-8 rounded-2xl shadow-lg hover-lift">
+                                            <div className="feature-icon card-gradient-1 text-white text-2xl">
+                                                <i className="fas fa-bolt"></i>
+                                            </div>
+                                            <h3 className="text-xl font-bold text-gray-900 mb-2">Deploy Instan</h3>
+                                            <p className="text-gray-600">Deploy aplikasi dalam hitungan detik dengan Git push</p>
+                                        </div>
+                                        <div className="bg-white p-8 rounded-2xl shadow-lg hover-lift">
+                                            <div className="feature-icon card-gradient-2 text-white text-2xl">
+                                                <i className="fas fa-chart-line"></i>
+                                            </div>
+                                            <h3 className="text-xl font-bold text-gray-900 mb-2">Auto Scaling</h3>
+                                            <p className="text-gray-600">Skala otomatis sesuai traffic aplikasi Anda</p>
+                                        </div>
+                                        <div className="bg-white p-8 rounded-2xl shadow-lg hover-lift">
+                                            <div className="feature-icon card-gradient-3 text-white text-2xl">
+                                                <i className="fas fa-lock"></i>
+                                            </div>
+                                            <h3 className="text-xl font-bold text-gray-900 mb-2">SSL Gratis</h3>
+                                            <p className="text-gray-600">Sertifikat SSL otomatis untuk semua domain</p>
+                                        </div>
+                                        <div className="bg-white p-8 rounded-2xl shadow-lg hover-lift">
+                                            <div className="feature-icon card-gradient-4 text-white text-2xl">
+                                                <i className="fas fa-database"></i>
+                                            </div>
+                                            <h3 className="text-xl font-bold text-gray-900 mb-2">Database Managed</h3>
+                                            <p className="text-gray-600">PostgreSQL, MySQL, MongoDB siap pakai</p>
+                                        </div>
+                                        <div className="bg-white p-8 rounded-2xl shadow-lg hover-lift">
+                                            <div className="feature-icon card-gradient-5 text-white text-2xl">
+                                                <i className="fas fa-chart-bar"></i>
+                                            </div>
+                                            <h3 className="text-xl font-bold text-gray-900 mb-2">Monitoring 24/7</h3>
+                                            <p className="text-gray-600">Dashboard monitoring real-time</p>
+                                        </div>
+                                        <div className="bg-white p-8 rounded-2xl shadow-lg hover-lift">
+                                            <div className="feature-icon card-gradient-6 text-white text-2xl">
+                                                <i className="fas fa-flag"></i>
+                                            </div>
+                                            <h3 className="text-xl font-bold text-gray-900 mb-2">Support Lokal</h3>
+                                            <p className="text-gray-600">Tim support berbahasa Indonesia</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
+
+                            {/* Pricing */}
+                            <section id="pricing" className="py-20 bg-white">
+                                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                                    <div className="text-center mb-16">
+                                        <h2 className="text-4xl font-bold text-gray-900 mb-4">
+                                            Harga <span className="gradient-text">Transparan</span>
+                                        </h2>
+                                        <p className="text-xl text-gray-600">Pilih paket yang sesuai dengan kebutuhan Anda</p>
+                                    </div>
+                                    <div className="grid md:grid-cols-3 gap-8">
+                                        <div className="bg-white rounded-xl shadow-lg p-8 hover-lift border border-gray-200">
+                                            <h3 className="text-2xl font-bold text-gray-900 mb-2">Starter</h3>
+                                            <div className="mb-6">
+                                                <span className="text-4xl font-bold gradient-text">49K</span>
+                                                <span className="text-gray-600">/bulan</span>
+                                            </div>
+                                            <ul className="space-y-3 mb-8">
+                                                <li className="flex items-center text-gray-700">
+                                                    <span className="text-green-500 mr-2">✓</span>
+                                                    2 Aplikasi
+                                                </li>
+                                                <li className="flex items-center text-gray-700">
+                                                    <span className="text-green-500 mr-2">✓</span>
+                                                    512MB RAM
+                                                </li>
+                                                <li className="flex items-center text-gray-700">
+                                                    <span className="text-green-500 mr-2">✓</span>
+                                                    1 vCPU
+                                                </li>
+                                                <li className="flex items-center text-gray-700">
+                                                    <span className="text-green-500 mr-2">✓</span>
+                                                    10GB Storage
+                                                </li>
+                                                <li className="flex items-center text-gray-700">
+                                                    <span className="text-green-500 mr-2">✓</span>
+                                                    SSL Gratis
+                                                </li>
+                                            </ul>
+                                            <button 
+                                                onClick={() => currentUser ? setShowBillingModal(true) : setAuthModalOpen(true)}
+                                                className="w-full bg-gray-100 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-200 transition"
+                                            >
+                                                {currentUser ? 'Pilih Paket' : 'Mulai Trial'}
+                                            </button>
+                                        </div>
+                                        
+                                        <div className="bg-white rounded-xl shadow-lg p-8 hover-lift ring-4 ring-purple-500 relative">
+                                            <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
+                                                <span className="gradient-bg text-white px-4 py-1 rounded-full text-sm font-medium">
+                                                    Paling Populer
+                                                </span>
+                                            </div>
+                                            <h3 className="text-2xl font-bold text-gray-900 mb-2">Pro</h3>
+                                            <div className="mb-6">
+                                                <span className="text-4xl font-bold gradient-text">149K</span>
+                                                <span className="text-gray-600">/bulan</span>
+                                            </div>
+                                            <ul className="space-y-3 mb-8">
+                                                <li className="flex items-center text-gray-700">
+                                                    <span className="text-green-500 mr-2">✓</span>
+                                                    5 Aplikasi
+                                                </li>
+                                                <li className="flex items-center text-gray-700">
+                                                    <span className="text-green-500 mr-2">✓</span>
+                                                    2GB RAM
+                                                </li>
+                                                <li className="flex items-center text-gray-700">
+                                                    <span className="text-green-500 mr-2">✓</span>
+                                                    2 vCPU
+                                                </li>
+                                                <li className="flex items-center text-gray-700">
+                                                    <span className="text-green-500 mr-2">✓</span>
+                                                    50GB Storage
+                                                </li>
+                                                <li className="flex items-center text-gray-700">
+                                                    <span className="text-green-500 mr-2">✓</span>
+                                                    Database Managed
+                                                </li>
+                                                <li className="flex items-center text-gray-700">
+                                                    <span className="text-green-500 mr-2">✓</span>
+                                                    Priority Support
+                                                </li>
+                                            </ul>
+                                            <button 
+                                                onClick={() => currentUser ? setShowBillingModal(true) : setAuthModalOpen(true)}
+                                                className="w-full gradient-bg text-white py-3 rounded-lg font-semibold hover:opacity-90 transition"
+                                            >
+                                                {currentUser ? 'Pilih Paket' : 'Mulai Trial'}
+                                            </button>
+                                        </div>
+                                        
+                                        <div className="bg-white rounded-xl shadow-lg p-8 hover-lift border border-gray-200">
+                                            <h3 className="text-2xl font-bold text-gray-900 mb-2">Business</h3>
+                                            <div className="mb-6">
+                                                <span className="text-4xl font-bold gradient-text">399K</span>
+                                                <span className="text-gray-600">/bulan</span>
+                                            </div>
+                                            <ul className="space-y-3 mb-8">
+                                                <li className="flex items-center text-gray-700">
+                                                    <span className="text-green-500 mr-2">✓</span>
+                                                    10 Aplikasi
+                                                </li>
+                                                <li className="flex items-center text-gray-700">
+                                                    <span className="text-green-500 mr-2">✓</span>
+                                                    8GB RAM
+                                                </li>
+                                                <li className="flex items-center text-gray-700">
+                                                    <span className="text-green-500 mr-2">✓</span>
+                                                    4 vCPU
+                                                </li>
+                                                <li className="flex items-center text-gray-700">
+                                                    <span className="text-green-500 mr-2">✓</span>
+                                                    200GB Storage
+                                                </li>
+                                                <li className="flex items-center text-gray-700">
+                                                    <span className="text-green-500 mr-2">✓</span>
+                                                    Database Cluster
+                                                </li>
+                                                <li className="flex items-center text-gray-700">
+                                                    <span className="text-green-500 mr-2">✓</span>
+                                                    Dedicated Support
+                                                </li>
+                                            </ul>
+                                            <button 
+                                                onClick={() => currentUser ? setShowBillingModal(true) : setAuthModalOpen(true)}
+                                                className="w-full bg-gray-100 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-200 transition"
+                                            >
+                                                {currentUser ? 'Pilih Paket' : 'Mulai Trial'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
+                        </>
+                    )}
+
+                    {currentPage === 'dashboard' && currentUser && (
+                        <section id="dashboard" className="pt-32 pb-20 bg-gray-50">
+                            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                                <div className="text-center mb-12">
+                                    <h2 className="text-4xl font-bold text-gray-900 mb-4">
+                                        Dashboard <span className="gradient-text">Deploykit</span>
+                                    </h2>
+                                    <p className="text-xl text-gray-600">Kelola aplikasi dan langganan Anda secara real-time</p>
+                                </div>
+                                
+                                {/* Subscription Status Card */}
+                                <div className="mb-10">
+                                    <div className="bg-white rounded-2xl shadow-lg p-6 border-l-4 border-purple-500">
+                                        <div className="flex flex-col md:flex-row justify-between items-center">
+                                            <div className="flex items-center mb-4 md:mb-0">
+                                                <div className="mr-4 p-3 rounded-lg bg-purple-100 text-purple-600">
+                                                    <i className="fas fa-crown text-2xl"></i>
+                                                </div>
+                                                <div>
+                                                    <h3 className="text-xl font-bold text-gray-900">Status Langganan</h3>
+                                                    <div className="flex items-center mt-1">
+                                                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                                                            subscription?.status === 'active' ? 'status-active' : 
+                                                            subscription?.status === 'expired' ? 'status-expired' : 
+                                                            subscription?.status === 'pending_payment' ? 'status-pending' : 'bg-gray-100 text-gray-800'
+                                                        }`}>
+                                                            {subscription?.plan_type?.charAt(0).toUpperCase() + subscription?.plan_type?.slice(1) || 'Tidak Ada'} - {subscription?.status?.replace('_', ' ').toUpperCase() || 'TIDAK AKTIF'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <button 
+                                                onClick={() => setShowBillingModal(true)}
+                                                className="gradient-bg text-white px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition flex items-center"
+                                            >
+                                                <i className="fas fa-arrow-up mr-2"></i>
+                                                {subscription?.status === 'active' ? 'Perbarui' : 'Upgrade Sekarang'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                {/* Stats Overview */}
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
+                                    <div className="bg-white p-6 rounded-2xl shadow">
+                                        <div className="flex items-center">
+                                            <div className="p-3 rounded-lg bg-blue-100 text-blue-600 mr-4">
+                                                <i className="fas fa-microchip text-xl"></i>
+                                            </div>
+                                            <div>
+                                                <p className="text-gray-500">Aplikasi Aktif</p>
+                                                <p className="text-2xl font-bold">2/5</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="bg-white p-6 rounded-2xl shadow">
+                                        <div className="flex items-center">
+                                            <div className="p-3 rounded-lg bg-green-100 text-green-600 mr-4">
+                                                <i className="fas fa-server text-xl"></i>
+                                            </div>
+                                            <div>
+                                                <p className="text-gray-500">Resource</p>
+                                                <p className="text-2xl font-bold">2GB RAM</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="bg-white p-6 rounded-2xl shadow">
+                                        <div className="flex items-center">
+                                            <div className="p-3 rounded-lg bg-yellow-100 text-yellow-600 mr-4">
+                                                <i className="fas fa-wallet text-xl"></i>
+                                            </div>
+                                            <div>
+                                                <p className="text-gray-500">Pembayaran</p>
+                                                <p className="text-2xl font-bold">{subscription?.status === 'active' ? 'Lunas' : 'Perlu Diperbarui'}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="bg-white p-6 rounded-2xl shadow">
+                                        <div className="flex items-center">
+                                            <div className="p-3 rounded-lg bg-purple-100 text-purple-600 mr-4">
+                                                <i className="fas fa-clock text-xl"></i>
+                                            </div>
+                                            <div>
+                                                <p className="text-gray-500">Berlaku Hingga</p>
+                                                <p className="text-2xl font-bold">{subscription?.end_date ? new Date(subscription.end_date).toLocaleDateString() : 'N/A'}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                {/* Main Dashboard Content */}
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                                    <div className="lg:col-span-2">
+                                        <div className="bg-white rounded-2xl shadow-lg p-6">
+                                            <div className="flex justify-between items-center mb-6">
+                                                <h3 className="text-xl font-bold text-gray-900">Jalankan Deploykit</h3>
+                                                <div className="flex space-x-2">
+                                                    <button className="px-3 py-1 bg-gray-100 rounded-lg text-sm">Terminal</button>
+                                                    <button className="px-3 py-1 bg-purple-100 text-purple-700 rounded-lg text-sm">Script</button>
+                                                </div>
+                                            </div>
+                                            <DeploykitRunner token={userToken} />
+                                        </div>
+                                        
+                                        <div className="bg-white rounded-2xl shadow-lg p-6 mt-8">
+                                            <h3 className="text-xl font-bold text-gray-900 mb-6">Riwayat Aktivitas</h3>
+                                            <div className="space-y-4">
+                                                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                                    <div className="flex items-center">
+                                                        <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center mr-3">
+                                                            <i className="fas fa-check text-green-600"></i>
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-medium">Deployment sukses</p>
+                                                            <p className="text-sm text-gray-500">portfolio-site - 2 menit yang lalu</p>
+                                                        </div>
+                                                    </div>
+                                                    <span className="text-sm text-gray-500">10:25 AM</span>
+                                                </div>
+                                                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                                    <div className="flex items-center">
+                                                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center mr-3">
+                                                            <i className="fas fa-sync text-blue-600"></i>
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-medium">Build sedang berjalan</p>
+                                                            <p className="text-sm text-gray-500">api-service - 15 menit yang lalu</p>
+                                                        </div>
+                                                    </div>
+                                                    <span className="text-sm text-gray-500">10:10 AM</span>
+                                                </div>
+                                                <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                                    <div className="flex items-center">
+                                                        <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center mr-3">
+                                                            <i className="fas fa-file-code text-purple-600"></i>
+                                                        </div>
+                                                        <div>
+                                                            <p className="font-medium">Kode di-push</p>
+                                                            <p className="text-sm text-gray-500">ecommerce-platform - 1 jam yang lalu</p>
+                                                        </div>
+                                                    </div>
+                                                    <span className="text-sm text-gray-500">9:45 AM</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div>
+                                        <div className="bg-white rounded-2xl shadow-lg p-6">
+                                            <div className="flex justify-between items-center mb-6">
+                                                <h3 className="text-xl font-bold text-gray-900">Aplikasi Saya</h3>
+                                                <span className="text-sm text-gray-500">{usedApps || 0}/{appLimit || 0} digunakan</span>
+                                            </div>
+                                            <UserApplications token={userToken} />
+                                        </div>
+                                        
+                                        <div className="bg-white rounded-2xl shadow-lg p-6 mt-8">
+                                            <h3 className="text-xl font-bold text-gray-900 mb-6">Lisensi</h3>
+                                            <div className="space-y-4">
+                                                <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                                                    <span className="font-medium">Status Lisensi</span>
+                                                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                                                        subscription?.status === 'active' ? 'status-active' : 
+                                                        subscription?.status === 'expired' ? 'status-expired' : 
+                                                        subscription?.status === 'pending_payment' ? 'status-pending' : 'bg-gray-100 text-gray-800'
+                                                    }`}>
+                                                        {subscription?.status?.replace('_', ' ') || 'Tidak Aktif'}
+                                                    </span>
+                                                </div>
+                                                <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                                                    <span className="font-medium">Jenis Lisensi</span>
+                                                    <span>{subscription?.plan_type?.charAt(0).toUpperCase() + subscription?.plan_type?.slice(1) || 'Tidak Ada'}</span>
+                                                </div>
+                                                <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                                                    <span className="font-medium">Berlaku Sampai</span>
+                                                    <span>{subscription?.end_date ? new Date(subscription.end_date).toLocaleDateString() : 'N/A'}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        {currentUser?.username === 'admin' && <AdminDashboard />}
+                                        
+                                        <div className="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-2xl shadow-lg p-6 mt-8 text-white">
+                                            <h3 className="text-xl font-bold mb-2">Butuh Bantuan?</h3>
+                                            <p className="mb-4">Tim support kami siap membantu Anda 24/7</p>
+                                            <div className="flex space-x-3">
+                                                <button className="flex-1 bg-white text-blue-600 py-2 rounded-lg font-medium flex items-center justify-center">
+                                                    <i className="fas fa-comments mr-2"></i> Live Chat
+                                                </button>
+                                                <button className="flex-1 bg-blue-700 py-2 rounded-lg font-medium flex items-center justify-center">
+                                                    <i className="fas fa-envelope mr-2"></i> Email
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                    )}
+
+                    {currentPage === 'billing' && (
+                        <section id="pricing" className="pt-32 pb-20 bg-white">
+                            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                                <div className="text-center mb-16">
+                                    <h2 className="text-4xl font-bold text-gray-900 mb-4">
+                                        Harga <span className="gradient-text">Transparan</span>
+                                    </h2>
+                                    <p className="text-xl text-gray-600">Pilih paket yang sesuai dengan kebutuhan Anda</p>
+                                </div>
+                                <div className="grid md:grid-cols-3 gap-8">
+                                    <div className="bg-white rounded-xl shadow-lg p-8 hover-lift border border-gray-200">
+                                        <h3 className="text-2xl font-bold text-gray-900 mb-2">Starter</h3>
+                                        <div className="mb-6">
+                                            <span className="text-4xl font-bold gradient-text">49K</span>
+                                            <span className="text-gray-600">/bulan</span>
+                                        </div>
+                                        <ul className="space-y-3 mb-8">
+                                            <li className="flex items-center text-gray-700">
+                                                <span className="text-green-500 mr-2">✓</span>
+                                                2 Aplikasi
+                                            </li>
+                                            <li className="flex items-center text-gray-700">
+                                                <span className="text-green-500 mr-2">✓</span>
+                                                512MB RAM
+                                            </li>
+                                            <li className="flex items-center text-gray-700">
+                                                <span className="text-green-500 mr-2">✓</span>
+                                                1 vCPU
+                                            </li>
+                                            <li className="flex items-center text-gray-700">
+                                                <span className="text-green-500 mr-2">✓</span>
+                                                10GB Storage
+                                            </li>
+                                            <li className="flex items-center text-gray-700">
+                                                <span className="text-green-500 mr-2">✓</span>
+                                                SSL Gratis
+                                            </li>
+                                        </ul>
+                                        <button 
+                                            onClick={() => currentUser ? setShowBillingModal(true) : setAuthModalOpen(true)}
+                                            className="w-full bg-gray-100 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-200 transition"
+                                        >
+                                            {currentUser ? 'Pilih Paket' : 'Mulai Trial'}
+                                        </button>
+                                    </div>
+                                    
+                                    <div className="bg-white rounded-xl shadow-lg p-8 hover-lift ring-4 ring-purple-500 relative">
+                                        <div className="absolute -top-4 left-1/2 transform -translate-x-1/2">
+                                            <span className="gradient-bg text-white px-4 py-1 rounded-full text-sm font-medium">
+                                                Paling Populer
+                                            </span>
+                                        </div>
+                                        <h3 className="text-2xl font-bold text-gray-900 mb-2">Pro</h3>
+                                        <div className="mb-6">
+                                            <span className="text-4xl font-bold gradient-text">149K</span>
+                                            <span className="text-gray-600">/bulan</span>
+                                        </div>
+                                        <ul className="space-y-3 mb-8">
+                                            <li className="flex items-center text-gray-700">
+                                                <span className="text-green-500 mr-2">✓</span>
+                                                5 Aplikasi
+                                            </li>
+                                            <li className="flex items-center text-gray-700">
+                                                <span className="text-green-500 mr-2">✓</span>
+                                                2GB RAM
+                                            </li>
+                                            <li className="flex items-center text-gray-700">
+                                                <span className="text-green-500 mr-2">✓</span>
+                                                2 vCPU
+                                            </li>
+                                            <li className="flex items-center text-gray-700">
+                                                <span className="text-green-500 mr-2">✓</span>
+                                                50GB Storage
+                                            </li>
+                                            <li className="flex items-center text-gray-700">
+                                                <span className="text-green-500 mr-2">✓</span>
+                                                Database Managed
+                                            </li>
+                                            <li className="flex items-center text-gray-700">
+                                                <span className="text-green-500 mr-2">✓</span>
+                                                Priority Support
+                                            </li>
+                                        </ul>
+                                        <button 
+                                            onClick={() => currentUser ? setShowBillingModal(true) : setAuthModalOpen(true)}
+                                            className="w-full gradient-bg text-white py-3 rounded-lg font-semibold hover:opacity-90 transition"
+                                        >
+                                            {currentUser ? 'Pilih Paket' : 'Mulai Trial'}
+                                        </button>
+                                    </div>
+                                    
+                                    <div className="bg-white rounded-xl shadow-lg p-8 hover-lift border border-gray-200">
+                                        <h3 className="text-2xl font-bold text-gray-900 mb-2">Business</h3>
+                                        <div className="mb-6">
+                                            <span className="text-4xl font-bold gradient-text">399K</span>
+                                            <span className="text-gray-600">/bulan</span>
+                                        </div>
+                                        <ul className="space-y-3 mb-8">
+                                            <li className="flex items-center text-gray-700">
+                                                <span className="text-green-500 mr-2">✓</span>
+                                                10 Aplikasi
+                                            </li>
+                                            <li className="flex items-center text-gray-700">
+                                                <span className="text-green-500 mr-2">✓</span>
+                                                8GB RAM
+                                            </li>
+                                            <li className="flex items-center text-gray-700">
+                                                <span className="text-green-500 mr-2">✓</span>
+                                                4 vCPU
+                                            </li>
+                                            <li className="flex items-center text-gray-700">
+                                                <span className="text-green-500 mr-2">✓</span>
+                                                200GB Storage
+                                            </li>
+                                            <li className="flex items-center text-gray-700">
+                                                <span className="text-green-500 mr-2">✓</span>
+                                                Database Cluster
+                                            </li>
+                                            <li className="flex items-center text-gray-700">
+                                                <span className="text-green-500 mr-2">✓</span>
+                                                Dedicated Support
+                                            </li>
+                                        </ul>
+                                        <button 
+                                            onClick={() => currentUser ? setShowBillingModal(true) : setAuthModalOpen(true)}
+                                            className="w-full bg-gray-100 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-200 transition"
+                                        >
+                                            {currentUser ? 'Pilih Paket' : 'Mulai Trial'}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                    )}
+
+                    {currentPage === 'docs' && (
+                        <section className="pt-32 pb-20 bg-gray-50">
+                            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+                                <div className="bg-white rounded-2xl shadow-lg p-8">
+                                    <h1 className="text-3xl font-bold text-gray-900 mb-6">Dokumentasi Deploykit</h1>
+                                    <div className="prose max-w-none">
+                                        <h2 className="text-2xl font-semibold text-gray-800 mb-4">Selamat Datang di Dokumentasi Deploykit</h2>
+                                        <p className="text-gray-600 mb-6">
+                                            Deploykit adalah platform hosting modern untuk developer Indonesia. Platform ini memungkinkan Anda untuk dengan mudah deploy, scale, dan manage aplikasi Anda.
+                                        </p>
+                                        
+                                        <h3 className="text-xl font-semibold text-gray-800 mt-8 mb-4">Fitur Utama</h3>
+                                        <ul className="list-disc pl-6 text-gray-600 space-y-2">
+                                            <li>Deploy aplikasi dalam hitungan detik dengan Git push</li>
+                                            <li>Auto Scaling sesuai traffic aplikasi Anda</li>
+                                            <li>Sertifikat SSL otomatis untuk semua domain</li>
+                                            <li>Database siap pakai (PostgreSQL, MySQL, MongoDB)</li>
+                                            <li>Dashboard monitoring real-time</li>
+                                            <li>Support berbahasa Indonesia 24/7</li>
+                                        </ul>
+                                        
+                                        <h3 className="text-xl font-semibold text-gray-800 mt-8 mb-4">Memulai</h3>
+                                        <p className="text-gray-600 mb-4">
+                                            Untuk memulai menggunakan Deploykit, Anda perlu mendaftar akun dan memilih paket yang sesuai.
+                                        </p>
+                                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                                            <h4 className="font-semibold text-blue-800 mb-2">Catatan Penting</h4>
+                                            <p className="text-blue-700">
+                                                Pastikan untuk mengikuti panduan deploy untuk aplikasi Anda sesuai dengan teknologi yang digunakan (Node.js, Python, PHP, dsb).
+                                            </p>
+                                        </div>
+                                        
+                                        <h3 className="text-xl font-semibold text-gray-800 mt-8 mb-4">Referensi Perintah</h3>
+                                        <div className="overflow-x-auto">
+                                            <table className="min-w-full bg-white border border-gray-200 rounded-lg">
+                                                <thead>
+                                                    <tr className="bg-gray-100">
+                                                        <th className="py-2 px-4 border-b text-left">Perintah</th>
+                                                        <th className="py-2 px-4 border-b text-left">Deskripsi</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <tr>
+                                                        <td className="py-2 px-4 border-b font-mono text-sm">git push deploykit main</td>
+                                                        <td className="py-2 px-4 border-b">Deploy aplikasi Anda</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td className="py-2 px-4 border-b font-mono text-sm">dokku apps:list</td>
+                                                        <td className="py-2 px-4 border-b">Lihat daftar aplikasi</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td className="py-2 px-4 border-b font-mono text-sm">dokku logs &lt;app&gt;</td>
+                                                        <td className="py-2 px-4 border-b">Lihat log aplikasi</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                    )}
+
+                    {/* CTA - Only show on home page */}
+                    {currentPage === 'home' && (
+                        <section className="py-20 gradient-bg">
+                            <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+                                <h2 className="text-4xl font-bold text-white mb-4">
+                                    Siap untuk Deploy Aplikasi Anda?
+                                </h2>
+                                <p className="text-xl text-purple-100 mb-8">
+                                    Bergabung dengan ribuan developer yang sudah mempercayai Deploykit
+                                </p>
+                                <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                                    <button 
+                                        onClick={() => { setAuthModalOpen(true); setAuthMode('register'); }}
+                                        className="bg-white text-purple-600 px-8 py-4 rounded-lg text-lg font-semibold hover:bg-gray-100 transition shadow-xl"
+                                    >
+                                        Mulai Gratis Sekarang
+                                    </button>
+                                    <button 
+                                        onClick={() => { 
+                                            if (currentUser) {
+                                                setShowBillingModal(true);
+                                            } else {
+                                                setAuthModalOpen(true); 
+                                                setAuthMode('register'); 
+                                            }
+                                        }}
+                                        className="bg-transparent border-2 border-white text-white px-8 py-4 rounded-lg text-lg font-semibold hover:bg-white hover:text-purple-600 transition shadow-xl"
+                                    >
+                                        Lihat Paket Berlangganan
+                                    </button>
+                                </div>
+                            </div>
+                        </section>
+                    )}
+
+                    {/* Footer - Always show */}
+                    <footer className="bg-gray-900 text-gray-400 py-12">
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                            <div className="grid md:grid-cols-4 gap-8 mb-8">
+                                <div>
+                                    <div className="flex items-center space-x-2 mb-4">
+                                        <div className="w-8 h-8 gradient-bg rounded-lg flex items-center justify-center text-white font-bold">
+                                            D
+                                        </div>
+                                        <span className="text-xl font-bold text-white">Deploykit</span>
+                                    </div>
+                                    <p className="text-sm">Platform hosting modern untuk developer Indonesia</p>
+                                </div>
+                                <div>
+                                    <h4 className="text-white font-semibold mb-4">Produk</h4>
+                                    <ul className="space-y-2 text-sm">
+                                        <li><button 
+                                            onClick={() => { setCurrentPage('home'); window.location.hash = ''; }}
+                                            className="hover:text-white transition text-gray-400"
+                                        >Fitur</button></li>
+                                        <li><button 
+                                            onClick={() => { setCurrentPage('billing'); window.location.hash = 'pricing'; }}
+                                            className="hover:text-white transition text-gray-400"
+                                        >Harga</button></li>
+                                        <li><button 
+                                            onClick={() => { setCurrentPage('docs'); window.location.hash = 'docs'; }}
+                                            className="hover:text-white transition text-gray-400"
+                                        >Dokumentasi</button></li>
+                                    </ul>
+                                </div>
+                                <div>
+                                    <h4 className="text-white font-semibold mb-4">Perusahaan</h4>
+                                    <ul className="space-y-2 text-sm">
+                                        <li><a href="#" className="hover:text-white transition">Tentang Kami</a></li>
+                                        <li><a href="#" className="hover:text-white transition">Blog</a></li>
+                                        <li><a href="#" className="hover:text-white transition">Karir</a></li>
+                                    </ul>
+                                </div>
+                                <div>
+                                    <h4 className="text-white font-semibold mb-4">Support</h4>
+                                    <ul className="space-y-2 text-sm">
+                                        <li><a href="#" className="hover:text-white transition">Help Center</a></li>
+                                        <li><a href="#" className="hover:text-white transition">Status</a></li>
+                                        <li><a href="#" className="hover:text-white transition">Kontak</a></li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <div className="border-t border-gray-800 pt-8 text-center text-sm">
+                                <p>© 2025 PT. Solusi Konsep Teknologi. All rights reserved.</p>
+                            </div>
+                        </div>
+                    </footer>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
